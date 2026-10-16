@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>La Quiniela</title>
+<meta name="description" content="La quiniela de Primera División para jugar con tus amigos.">
+<meta name="theme-color" content="#CF1430">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Quiniela">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F2F3F5;--paper:#FFFFFF;--ink:#1A1D26;--muted:#646A78;--red:#CF1430;--rule:#F0C2C9;--tint:#FDF0F2;
+  --grass:#15814A;--grass-t:#E2F3E9;--amber:#A86D12;--amber-t:#FAEFD9;--line:#DFE2E8;--onred:#FFFFFF;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#101217;--paper:#1A1D24;--ink:#ECEDF1;--muted:#9CA2AF;--red:#FF4B5F;--rule:#4A2730;--tint:#26181C;
+    --grass:#45C47F;--grass-t:#15301F;--amber:#E6B04E;--amber-t:#32270F;--line:#2C3039;--onred:#1A0A0D;color-scheme:dark;
+  }
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.45 Barlow,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+.wrap{max-width:640px;margin:0 auto;padding:16px 14px 56px}
+
+/* Cabecera */
+.mast{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding-bottom:10px;border-bottom:3px double var(--red)}
+.mast h1{margin:0;font:800 44px/0.9 "Barlow Condensed","Arial Narrow",sans-serif;color:var(--red);letter-spacing:-0.5px}
+.mast p{margin:4px 0 0;color:var(--muted);font-size:14px}
+.me{font-size:14px;color:var(--muted);text-align:right;max-width:48%}
+.me b{color:var(--ink);font-weight:600;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.linkbtn{background:none;border:0;padding:0;color:var(--muted);text-decoration:underline;font-size:13px}
+
+/* Pestañas */
+.tabs{display:flex;gap:4px;margin:12px 0 16px;border-bottom:1px solid var(--line)}
+.tabs button{background:none;border:0;padding:10px 12px;font:600 17px "Barlow Condensed",sans-serif;color:var(--muted);border-bottom:3px solid transparent;margin-bottom:-1px}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--red)}
+
+/* Chips de jornada */
+.chips{display:flex;gap:6px;overflow-x:auto;padding:5px 4px 8px;margin-bottom:10px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:0 0 auto;min-width:44px;border:1.5px solid var(--line);background:var(--paper);color:var(--ink);border-radius:999px;padding:4px 12px;font:700 16px "Barlow Condensed",sans-serif}
+.chip.nodata{color:var(--muted);border-style:dashed}
+.chip.done{background:var(--bg)}
+.chip.next{background:var(--red);border-color:var(--red);color:var(--onred)}
+.chip[aria-pressed="true"]{box-shadow:0 0 0 2px var(--paper),0 0 0 4px var(--ink)}
+.legend{font-size:13px;color:var(--muted);margin:-4px 0 12px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--red);margin-right:4px}
+
+.jhead{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;margin-bottom:10px}
+.jhead h2{margin:0;font:800 34px/1 "Barlow Condensed",sans-serif}
+.jhead .when{font-size:14px;color:var(--muted);text-align:right}
+.status{display:inline-block;font:700 14px "Barlow Condensed",sans-serif;padding:2px 8px;border-radius:4px;margin-top:4px}
+.status.open{background:var(--grass-t);color:var(--grass)}
+.status.closed{background:var(--tint);color:var(--red)}
+.status.live{background:var(--red);color:var(--onred)}
+
+/* Boleto */
+.boleto{background:var(--paper);border:2px solid var(--red);border-radius:6px;overflow:hidden}
+.day{background:var(--tint);color:var(--red);font:700 14px "Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.5px;padding:4px 10px;border-top:1px solid var(--rule)}
+.day:first-child{border-top:0}
+.row{display:grid;grid-template-columns:50px 1fr 54px 84px;align-items:stretch;border-top:1px solid var(--rule)}
+.day + .row{border-top:0}
+.row.closed{grid-template-columns:50px 1fr 34px 34px 46px}
+.time{font:700 16px "Barlow Condensed",sans-serif;color:var(--red);display:grid;place-items:center;border-right:1px solid var(--rule);text-align:center;line-height:1.1;padding:0 2px}
+.time small{display:block;font-size:11px;font-weight:700}
+.teams{padding:8px 8px 8px 10px;display:grid;gap:6px;min-width:0}
+.team{font-weight:600;height:28px;line-height:28px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.scores{display:grid;gap:6px;padding:8px 0;align-content:center;justify-items:center}
+.scores input{width:44px;height:28px;text-align:center;font:700 19px "Barlow Condensed",sans-serif;border:1px solid var(--line);border-radius:4px;background:var(--bg);padding:0;-moz-appearance:textfield}
+.scores input::-webkit-inner-spin-button,.scores input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.scores .v{height:28px;line-height:28px;font:700 19px "Barlow Condensed",sans-serif}
+.scores .v.real{color:var(--muted);font-weight:600}
+.scores .v.real.live{color:var(--red)}
+.signs{display:flex;gap:4px;align-items:center;justify-content:center;border-left:1px solid var(--rule)}
+.sign{width:22px;height:26px;border:1.5px solid var(--rule);border-radius:2px;display:grid;place-items:center;font:700 15px "Barlow Condensed",sans-serif;color:var(--muted)}
+.sign.on{background:var(--red);border-color:var(--red);color:var(--onred)}
+.ptscol{display:grid;place-items:center;border-left:1px solid var(--rule)}
+.pts{font:700 16px "Barlow Condensed",sans-serif;min-width:30px;text-align:center;padding:2px 4px;border-radius:4px;color:var(--muted)}
+.p5{background:var(--grass);color:var(--paper)}
+.p2{background:var(--grass-t);color:var(--grass)}
+.p1{background:var(--amber-t);color:var(--amber)}
+.colhead{display:grid;grid-template-columns:50px 1fr 34px 34px 46px;font-size:12px;color:var(--muted);padding:0 0 4px;text-align:center}
+.colhead span:nth-child(2){text-align:left;padding-left:10px}
+
+.bar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;flex-wrap:wrap}
+.btn{border:0;border-radius:6px;padding:11px 18px;font:700 18px "Barlow Condensed",sans-serif;background:var(--red);color:var(--onred)}
+.btn:disabled{opacity:.5;cursor:default}
+.btn.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
+.btn.small{padding:6px 12px;font-size:16px}
+.btn.wide{width:100%}
+.note{font-size:14px;color:var(--muted)}
+.msg{font-size:14px;padding:8px 12px;border-radius:6px;margin-top:10px}
+.msg.ok{background:var(--grass-t);color:var(--grass)}
+.msg.err{background:var(--tint);color:var(--red)}
+
+.card{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:14px}
+.card h3{margin:0 0 8px;font:700 22px "Barlow Condensed",sans-serif}
+.field{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.field input,.field select,select.liga{border:1px solid var(--line);border-radius:6px;padding:10px;background:var(--bg);min-width:0;flex:1 1 160px}
+select.liga{width:100%;margin-bottom:12px;font-weight:600}
+.lbl{display:block;font-size:14px;color:var(--muted);margin:12px 0 4px}
+.who{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.who span{font-size:14px;background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:2px 10px}
+
+/* Foto */
+.foto h3{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table.grid{border-collapse:collapse;font-size:14px;min-width:100%}
+.grid th,.grid td{border-bottom:1px solid var(--line);padding:6px 5px;text-align:center;white-space:nowrap}
+.grid th{font:700 14px "Barlow Condensed",sans-serif;color:var(--muted)}
+.grid td.name,.grid th.name{text-align:left;position:sticky;left:0;background:var(--paper);max-width:110px;overflow:hidden;text-overflow:ellipsis;padding-left:0}
+.grid td.tot{font:800 18px "Barlow Condensed",sans-serif;color:var(--red)}
+.grid tr.realrow td{font-weight:700;border-bottom:2px solid var(--red)}
+
+/* Clasificación */
+.rank{background:var(--paper);border:2px solid var(--red);border-radius:6px;overflow:hidden}
+.rk{display:grid;grid-template-columns:44px 1fr auto;align-items:center;border-top:1px solid var(--rule);padding:10px 12px 10px 0}
+.rk:first-child{border-top:0}
+.rk .pos{font:800 26px "Barlow Condensed",sans-serif;color:var(--red);text-align:center}
+.rk .nm{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rk .sub{font-size:13px;color:var(--muted)}
+.rk .big{font:800 30px/1 "Barlow Condensed",sans-serif;text-align:right}
+.rk .big small{display:block;font:500 12px Barlow,sans-serif;color:var(--muted)}
+.rk.lead{background:var(--tint)}
+.rk.mine .nm::after{content:" (tú)";color:var(--muted);font-weight:400}
+
+/* Ligas */
+.liga-card .code{font:800 30px "Barlow Condensed",sans-serif;letter-spacing:3px;color:var(--red)}
+.liga-card .acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+
+/* Pantallas de entrada */
+.hero{text-align:center;padding:28px 6px 8px}
+.hero .ball{font:800 64px/1 "Barlow Condensed",sans-serif;color:var(--red)}
+.hero p{color:var(--muted);margin:8px auto 20px;max-width:380px}
+.empty{text-align:center;padding:36px 16px;color:var(--muted)}
+.empty strong{display:block;font:700 24px "Barlow Condensed",sans-serif;color:var(--ink);margin-bottom:6px}
+.code-input{font:700 28px "Barlow Condensed",sans-serif !important;letter-spacing:6px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"><div class="empty">Cargando la quiniela…</div></div>
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="app.js"></script>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+}
+</script>
+</body>
+</html>
