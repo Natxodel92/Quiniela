@@ -208,7 +208,7 @@ function vista(){
 
 function cabecera(){
   return h("header", { class: "mast" },
-    h("div", {}, h("h1", { text: "La Quiniela" }), h("p", { text: "Primera División " + (CFG.temporada || "").replace("-", "/") })),
+    h("div", {}, h("h1", { text: "El Porrazo" }), h("p", { text: "Primera División " + (CFG.temporada || "").replace("-", "/") })),
     S.user && S.perfil ? h("div", { class: "me" }, "Juegas como", h("b", { text: S.perfil.alias }),
       h("button", { class: "linkbtn", onclick: salir }, "Salir")) : null);
 }
