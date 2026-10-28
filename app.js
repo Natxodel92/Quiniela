@@ -535,11 +535,45 @@ function clasificacion(){
 }
 
 /* ----- ligas ----- */
+const resetState = { uid: null, pin: "" };
 function enlaceInvitacion(l){ return location.origin + location.pathname + "?unirse=" + l.codigo; }
 async function copiar(texto, key){
   try { await navigator.clipboard.writeText(texto); flash(key, "ok", "Enlace copiado."); }
   catch(e){ flash(key, "err", "No se ha podido copiar. Comparte el código: " + texto.split("=").pop()); }
 }
+/* Lista de jugadores de una liga. Si tú eres el organizador (dueño de la
+   liga), cada jugador trae un botón para cambiarle el PIN si lo olvida. */
+function miembrosLista(l){
+  const uids = miembrosDe(l);
+  if (l.owner !== S.user.id)
+    return h("div", { class: "who" }, uids.map(uid => h("span", { text: nombre(uid) })));
+  return h("div", { class: "who-admin" }, uids.map(uid => {
+    const yo = uid === S.user.id;
+    const abierto = resetState.uid === uid;
+    const fila = h("div", { class: "miembro" },
+      h("span", { class: "nm", text: nombre(uid) + (yo ? " · tú" : "") }),
+      yo || abierto ? null
+        : h("button", { class: "btn ghost small", onclick: () => { resetState.uid = uid; resetState.pin = ""; render(); } }, "Resetear PIN"));
+    if (abierto)
+      fila.append(h("form", { class: "reset-form", onsubmit: e => { e.preventDefault(); resetearPin(uid); } },
+        h("input", { type: "text", inputmode: "numeric", maxlength: "6", placeholder: "PIN nuevo (4-6 cifras)",
+          "aria-label": "PIN nuevo para " + nombre(uid), oninput: e => { resetState.pin = e.target.value; } }),
+        h("button", { class: "btn small", type: "submit" }, "Guardar"),
+        h("button", { class: "btn ghost small", type: "button", onclick: () => { resetState.uid = null; render(); } }, "Cancelar")));
+    fila.append(msgEl("reset_" + uid));
+    return fila;
+  }));
+}
+async function resetearPin(uid){
+  const key = "reset_" + uid;
+  const pin = (resetState.pin || "").trim();
+  if (!pinValido(pin)) return flash(key, "err", "El PIN tiene que ser de 4 a 6 cifras.");
+  const { error } = await sb.rpc("resetear_pin", { p_user: uid, p_pin: pin });
+  if (error) return flash(key, "err", "No se ha podido cambiar el PIN. Recarga y prueba otra vez.");
+  resetState.uid = null; resetState.pin = "";
+  flash(key, "ok", `PIN de ${nombre(uid)} cambiado a ${pin}. Pásaselo para que entre; luego puede ponerse el suyo.`);
+}
+
 function vistaLigas(){
   const out = h("section", {});
   for (const l of S.ligas){
@@ -550,7 +584,7 @@ function vistaLigas(){
       h("h3", { text: l.nombre }),
       h("div", { class: "note", text: `${n} ${n === 1 ? "jugador" : "jugadores"} · código` }),
       h("div", { class: "code", text: l.codigo }),
-      h("div", { class: "who" }, miembrosDe(l).map(uid => h("span", { text: nombre(uid) }))),
+      miembrosLista(l),
       h("div", { class: "acts" },
         h("a", { class: "btn small", href: "https://wa.me/?text=" + encodeURIComponent(texto), target: "_blank", rel: "noopener", style: "text-decoration:none" }, "Invitar por WhatsApp"),
         h("button", { class: "btn ghost small", onclick: () => copiar(enlaceInvitacion(l), key) }, "Copiar enlace"),

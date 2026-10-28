@@ -183,9 +183,31 @@ language sql stable security definer set search_path = public as $$
     and p_liga in (select public.mis_ligas())
 $$;
 
+-- Resetear el PIN de un jugador: solo el organizador (dueño) de una liga a la
+-- que ese jugador pertenece. Corre con permisos elevados (security definer),
+-- así no hace falta exponer ninguna clave de administrador en la web.
+create or replace function public.resetear_pin(p_user uuid, p_pin text) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then raise exception 'Necesitas iniciar sesión'; end if;
+  if p_pin !~ '^\d{4,6}$' then raise exception 'El PIN tiene que ser de 4 a 6 cifras'; end if;
+  if not exists (
+    select 1 from ligas l
+    join miembros m on m.liga_id = l.id
+    where l.owner = auth.uid() and m.user_id = p_user
+  ) then
+    raise exception 'Solo puedes cambiar el PIN de jugadores de una liga que tú organizas';
+  end if;
+  update auth.users
+    set encrypted_password = extensions.crypt('q-' || p_pin || '-quiniela', extensions.gen_salt('bf'))
+    where id = p_user;
+end $$;
+
 revoke execute on function public.crear_liga(text)           from anon;
 revoke execute on function public.unirse_liga(text)          from anon;
 revoke execute on function public.entregados(text, uuid)     from anon;
+revoke execute on function public.resetear_pin(uuid, text)   from anon;
 grant  execute on function public.crear_liga(text)           to authenticated;
 grant  execute on function public.unirse_liga(text)          to authenticated;
 grant  execute on function public.entregados(text, uuid)     to authenticated;
+grant  execute on function public.resetear_pin(uuid, text)   to authenticated;

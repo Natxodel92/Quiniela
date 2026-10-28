@@ -113,7 +113,12 @@ marcadores en directo y resultados finales.
 
 ## Arreglos a mano
 
-**Alguien ha olvidado su PIN.** En Supabase → **SQL Editor**, cambia `pep` por su apodo
+**Alguien ha olvidado su PIN.** Como organizador lo arreglas desde la propia web, sin
+tocar SQL: ve a la pestaña **Ligas** y, en la tarjeta de tu liga, cada jugador tiene un
+botón **Resetear PIN**. Le pones un PIN temporal, se lo pasas, entra con él y luego se
+cambia al suyo desde **Ligas → Tu cuenta**. (Solo el dueño de la liga ve ese botón.)
+
+Si prefieres hacerlo a mano en Supabase → **SQL Editor**, cambia `pep` por su apodo
 en minúsculas, sin acentos y con guiones en vez de espacios (Àlex Pérez → `alex-perez`),
 y `1234` por el PIN nuevo:
 
@@ -122,8 +127,6 @@ update auth.users
 set encrypted_password = extensions.crypt('q-1234-quiniela', extensions.gen_salt('bf'))
 where email = 'pep@jugadores.quiniela.app';
 ```
-
-Luego él puede ponerse otro PIN desde **Ligas → Tu cuenta**.
 
 **Un resultado viene mal.**
 
