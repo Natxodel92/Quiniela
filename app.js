@@ -83,6 +83,10 @@ const nombre = uid => (S.perfiles[uid] && S.perfiles[uid].alias) || "Jugador";
 const partidosDe = j => S.porJornada[j.id] || [];
 const ligaActual = () => S.ligas.find(l => l.id === S.liga) || S.ligas[0] || null;
 const miembrosDe = liga => liga ? S.miembros.filter(m => m.liga_id === liga.id).map(m => m.user_id) : [];
+/* Cada liga lleva su propio marcador: solo cuentan las jornadas que
+   cerraron después de crear la liga (las anteriores ya estaban jugadas). */
+const cuentaEnLiga = (j, liga) => !!liga && new Date(j.cierre).getTime() >= new Date(liga.creado).getTime();
+const primeraDeLiga = liga => S.jornadas.find(j => cuentaEnLiga(j, liga)) || null;
 function pickDe(uid, partidoId){
   const src = uid === S.user.id ? S.mios : S.ajenos[uid];
   const p = src && src[partidoId];
@@ -487,6 +491,7 @@ function fotoCard(j, liga){
     .filter(x => x.l.jugado)
     .sort((a, b) => b.l.t - a.l.t || b.l.ex - a.l.ex || a.nm.localeCompare(b.nm));
   const card = h("div", { class: "card foto" }, h("h3", {}, "La foto", h("span", { class: "note", text: liga.nombre })));
+  if (!cuentaEnLiga(j, liga)) card.append(h("p", { class: "note", style: "margin:0 0 8px", text: "Esta jornada es anterior a la liga: no suma en su clasificación." }));
   if (!filas.length){ card.append(h("p", { class: "note", style: "margin:0", text: "Nadie de la liga jugó esta jornada." })); return card; }
   const tbl = h("table", { class: "grid" },
     h("thead", {}, h("tr", {}, h("th", { class: "name", text: "Jugador" }), ps.map((_, i) => h("th", { text: String(i + 1) })), h("th", { text: "Pts" }))),
@@ -505,7 +510,9 @@ function clasificacion(){
   if (!liga) return h("section", {}, avisoSinLiga());
   const tot = {};
   for (const uid of miembrosDe(liga)) tot[uid] = { uid, t: 0, ex: 0, sg: 0, jug: 0, wins: 0, ult: null };
-  const cerradas = S.jornadas.filter(cerrada);
+  const cerradas = S.jornadas.filter(j => cerrada(j) && cuentaEnLiga(j, liga));
+  const primera = primeraDeLiga(liga);
+  const desde = primera ? `Esta liga cuenta desde la jornada ${primera.num}.` : "Esta liga empezará a contar en la próxima jornada que se publique.";
   for (const j of cerradas){
     let best = -1; const ls = {};
     for (const uid in tot){
@@ -531,7 +538,7 @@ function clasificacion(){
         h("div", { style: "min-width:0" }, h("div", { class: "nm", text: nombre(r.uid) }), h("div", { class: "sub", text: sub.join(" · ") })),
         h("div", { class: "big" }, String(r.t), h("small", { text: "puntos" })));
     })),
-    h("p", { class: "note" }, "Desempate: más resultados exactos. Ganar una jornada cuenta cuando han acabado todos sus partidos."));
+    h("p", { class: "note" }, desde + " Desempate: más resultados exactos. Ganar una jornada cuenta cuando han acabado todos sus partidos."));
 }
 
 /* ----- ligas ----- */
