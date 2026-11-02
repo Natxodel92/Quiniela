@@ -2,13 +2,24 @@ name: Sincronizar LaLiga
 
 on:
   schedule:
-    - cron: "*/20 * * * *"
+    # Minutos "raros" a propósito: a en punto GitHub va saturado y retrasa las tareas.
+    - cron: "7,27,47 * * * *"
   workflow_dispatch:
+
+# Una sola pasada a la vez: si ya hay una vigilando un partido, las demás esperan.
+concurrency:
+  group: sync-laliga
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: write   # para que el robot pueda lanzar su propio relevo
 
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # Los días de partido el robot se queda vigilando (hasta 5,5 h por pasada).
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -21,3 +32,4 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           SEASON: "2026"
+          GITHUB_TOKEN: ${{ github.token }}

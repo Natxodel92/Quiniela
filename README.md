@@ -143,4 +143,4 @@ sobrescribir con lo que diga la API en su siguiente pasada.
 | `manifest.webmanifest`, `sw.js`, `icons/` | Para instalarla en el móvil |
 | `supabase/schema.sql` | Tablas y permisos de la base de datos |
 | `scripts/sync_laliga.py` | Robot que baja jornadas y resultados |
-| `.github/workflows/sync.yml` | Lanza el robot cada 20 minutos |
+| `.github/workflows/sync.yml` | Lanza el robot; los días de partido se queda vigilando y actualiza cada 2 min |
