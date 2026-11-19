@@ -41,6 +41,8 @@ su propia web en GitHub Pages y su propio robot de resultados.
 - `migraciones/001_competiciones.sql`: varias competiciones (LaLiga, Premier,
   Bundesliga, Serie A, Champions). **Aplicada en pruebas** el 19/11/2026.
   Pendiente de aplicar en la buena junto con el código nuevo.
+- `migraciones/002_mas_competiciones.sql`: Ligue 1, Liga Portugal, Eredivisie y
+  Championship. **Aplicada en pruebas** el 19/11/2026.
 
 ## Pasar un cambio a la web buena
 
