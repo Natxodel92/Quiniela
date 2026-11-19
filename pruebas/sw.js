@@ -2,7 +2,7 @@
 // Permite instalar La Quiniela en el móvil y abrirla aunque falle la conexión.
 // Siempre intenta bajar la versión nueva primero; si no hay red, usa la guardada.
 const PREFIJO = "porrazo-pruebas-";
-const CACHE = PREFIJO + "v2";
+const CACHE = PREFIJO + "v3";
 const BASE = ["./", "./index.html", "./app.js", "./config.js", "./manifest.webmanifest", "./icons/icon-192.png"];
 
 self.addEventListener("install", e => {
