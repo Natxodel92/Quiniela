@@ -9,6 +9,12 @@ on:
   schedule:
     - cron: "37 * * * *"
   workflow_dispatch:
+  # También arranca al subir cambios al entorno de pruebas
+  push:
+    branches: [main]
+    paths:
+      - "pruebas/**"
+      - ".github/workflows/sync-pruebas.yml"
 
 concurrency:
   group: sync-laliga-pruebas
