@@ -411,7 +411,7 @@ function vistaJornada(){
   }
   const cer = cerrada(j), vivo = enJuego(j);
   out.append(h("div", { class: "jhead" },
-    h("div", {}, h("div", { class: "kicker" }, logo(comp), COMP(comp).nombre), h("h2", { text: tituloJ(j) }),
+    h("div", {}, h("div", { class: "kicker", text: COMP(comp).nombre }), h("h2", { text: tituloJ(j) }),
       h("span", { class: "status " + (vivo ? "live" : cer ? "closed" : "open"),
         text: vivo ? "En juego" : cer ? (terminada(j) ? "Terminada" : "Cerrada") : "Abierta" })),
     h("div", { class: "when" }, (cer ? "Cerró el " : "Cierra el ") + fmtFecha(j.cierre),
@@ -582,7 +582,7 @@ function clasificacion(){
   let prev = null, pos = 0;
   const etiqueta = j => (varias ? COMP(j.competicion).corto + " " : "") + chipTxt(j);
   return h("section", {}, selectorLiga(),
-    varias ? h("div", { class: "ctags", style: "margin:-4px 0 10px" }, comps.map(c => h("span", {}, logo(c), COMP(c).corto))) : null,
+    varias ? h("div", { class: "ctags", style: "margin:-4px 0 10px" }, comps.map(c => h("span", { text: COMP(c).corto }))) : null,
     h("div", { class: "rank" }, lista.map((r, i) => {
       if (!prev || r.t !== prev.t || r.ex !== prev.ex) pos = i + 1; prev = r;
       const sub = [`${r.ex} ${r.ex === 1 ? "exacto" : "exactos"}`, `${r.sg} ${r.sg === 1 ? "signo" : "signos"}`, `${r.jug} ${r.jug === 1 ? "jornada" : "jornadas"}`];
@@ -646,7 +646,7 @@ function vistaLigas(){
     const texto = `Únete a mi quiniela "${l.nombre}": ${enlaceInvitacion(l)}`;
     out.append(h("div", { class: "card liga-card" },
       h("h3", { text: l.nombre }),
-      h("div", { class: "ctags" }, compsDeLiga(l).map(c => h("span", {}, logo(c), COMP(c).corto))),
+      h("div", { class: "ctags" }, compsDeLiga(l).map(c => h("span", { text: COMP(c).corto }))),
       h("div", { class: "note", text: `${n} ${n === 1 ? "jugador" : "jugadores"} · código` }),
       h("div", { class: "code", text: l.codigo }),
       miembrosLista(l),
@@ -667,7 +667,7 @@ function vistaLigas(){
     h("div", { class: "checks" }, S.competiciones.map(c => h("label", { class: "check" },
       h("input", { type: "checkbox", checked: nuevaLiga.comps.has(c.codigo),
         onchange: e => { e.target.checked ? nuevaLiga.comps.add(c.codigo) : nuevaLiga.comps.delete(c.codigo); } }),
-      logo(c.codigo), c.nombre))),
+      c.nombre))),
     h("p", { class: "note", style: "margin:8px 0 0", text: "La clasificación de la liga suma los puntos de todas las que marques." }),
     h("button", { class: "btn small", style: "margin-top:10px", type: "submit" }, "Crear liga"),
     msgEl("crear")));
