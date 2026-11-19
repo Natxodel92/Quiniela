@@ -35,6 +35,12 @@ CON_NOMBRES_ES = {"PD", "CL"}
 # Segundos entre competición y competición: así nunca pasamos de ~9 llamadas
 # por minuto aunque el robot de la web buena use el mismo token a la vez.
 PAUSA = float(os.environ.get("PAUSA", "7"))
+# LaLiga se actualiza en cada pasada (y se vigila en directo). El resto, como
+# mucho una vez cada INTERVALO_RESTO segundos, para ahorrar llamadas a la API.
+FRECUENTES = {c.strip() for c in os.environ.get("FRECUENTES", "PD").split(",") if c.strip()}
+INTERVALO_RESTO = float(os.environ.get("INTERVALO_RESTO", str(2 * 3600)))
+# FORZAR=1 (al lanzarlo a mano o al subir cambios): baja todas, toque o no
+FORZAR = os.environ.get("FORZAR", "").lower() in {"1", "si", "true"}
 # Champions: la fase de liga son las jornadas 1-8; las eliminatorias van
 # después con número fijo, para que no cambie cuando se sortee la siguiente.
 FASES_CL = {
@@ -196,11 +202,36 @@ def sincronizar_comp(comp, ahora):
     return partidos
 
 
-def sincronizar():
-    """Baja todas las competiciones. Si una falla, sigue con las demás."""
+def toca(forzar):
+    """Competiciones que tocan en esta pasada: siempre las frecuentes; el
+    resto solo si hace al menos INTERVALO_RESTO que no se actualizan."""
+    if forzar:
+        return list(COMPETICIONES)
+    ultima = {}
+    try:
+        for c in supabase("GET", "competiciones?select=codigo,sincronizado") or []:
+            if c.get("sincronizado"):
+                ultima[c["codigo"]] = fecha(c["sincronizado"])
+    except Exception as e:
+        print(f"No he podido leer cuándo se actualizó cada competición ({e}); bajo solo las frecuentes.")
+        return [c for c in COMPETICIONES if c in FRECUENTES]
+    ahora = datetime.now(timezone.utc)
+    lista = []
+    for c in COMPETICIONES:
+        if c in FRECUENTES or c not in ultima or (ahora - ultima[c]).total_seconds() >= INTERVALO_RESTO:
+            lista.append(c)
+        else:
+            falta = INTERVALO_RESTO - (ahora - ultima[c]).total_seconds()
+            print(f"{c}: actualizada hace poco; la siguiente, en {int(falta // 60)} min.")
+    return lista
+
+
+def sincronizar(forzar=False):
+    """Baja las competiciones que tocan. Si una falla, sigue con las demás."""
     ahora = datetime.now(timezone.utc)
     todos, fallos = [], []
-    for i, comp in enumerate(COMPETICIONES):
+    comps = toca(forzar)
+    for i, comp in enumerate(comps):
         if i:
             time.sleep(PAUSA)            # el plan gratis deja 10 llamadas por minuto
         try:
@@ -212,10 +243,15 @@ def sincronizar():
                 print(f"{comp}: demasiadas llamadas seguidas; espero un minuto y repito.", flush=True)
                 time.sleep(61)
                 todos += sincronizar_comp(comp, ahora)
+            try:
+                supabase("PATCH", f"competiciones?codigo=eq.{comp}",
+                         {"sincronizado": datetime.now(timezone.utc).isoformat()}, "return=minimal")
+            except Exception as e:
+                print(f"{comp}: no he podido apuntar la hora de actualización ({e}).", file=sys.stderr)
         except Exception as e:
             fallos.append(comp)
             print(f"{comp}: fallo ({e}); sigo con las demás.", file=sys.stderr, flush=True)
-    if fallos and len(fallos) == len(COMPETICIONES):
+    if fallos and len(fallos) == len(comps):
         raise RuntimeError("No se ha podido bajar ninguna competición.")
     return todos
 
@@ -227,6 +263,8 @@ def pendientes(partidos):
     hoy = ahora.astimezone(MADRID).date()
     lista = []
     for p in partidos:
+        if p["jornada_id"].split("-")[0] not in FRECUENTES:
+            continue                     # solo se vigilan en directo las frecuentes
         if p["estado"] in ACABADO or p["estado"] in SIN_JUGAR:
             continue
         inicio = fecha(p["inicio"])
@@ -251,7 +289,7 @@ def relevo():
 
 def main():
     empiezo = time.monotonic()
-    partidos = sincronizar()
+    partidos = sincronizar(FORZAR)
     if os.environ.get("VIGILAR", "si").lower() in {"no", "0", "false"}:
         print("Modo pruebas: una pasada y listo, sin quedarme vigilando.")
         return

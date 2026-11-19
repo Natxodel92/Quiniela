@@ -43,6 +43,8 @@ su propia web en GitHub Pages y su propio robot de resultados.
   Pendiente de aplicar en la buena junto con el código nuevo.
 - `migraciones/002_mas_competiciones.sql`: Ligue 1, Liga Portugal, Eredivisie y
   Championship. **Aplicada en pruebas** el 19/11/2026.
+- `migraciones/003_ultima_actualizacion.sql`: hora de la última actualización de
+  cada competición (LaLiga siempre, el resto cada 2 h). **Aplicada en pruebas** el 19/11/2026.
 
 ## Pasar un cambio a la web buena
 

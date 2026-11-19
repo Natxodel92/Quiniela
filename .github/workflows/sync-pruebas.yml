@@ -52,4 +52,9 @@ jobs:
           SEASON: "2026"
           VIGILAR: "no"
           COMPETICIONES: "PD,PL,BL1,SA,FL1,CL,PPL,DED,ELC"
+          # LaLiga en cada pasada; el resto, como mucho cada 2 h.
+          # Al lanzarlo a mano o al subir cambios, se bajan todas.
+          FRECUENTES: "PD"
+          INTERVALO_RESTO: "7200"
+          FORZAR: ${{ github.event_name != 'schedule' }}
           WORKFLOW: sync-pruebas.yml
