@@ -86,6 +86,9 @@ const ligaActual = () => S.ligas.find(l => l.id === S.liga) || S.ligas[0] || nul
 const miembrosDe = liga => liga ? S.miembros.filter(m => m.liga_id === liga.id).map(m => m.user_id) : [];
 /* ----- competiciones ----- */
 const COMP = c => S.competiciones.find(x => x.codigo === c) || { codigo: c, nombre: c, corto: c, orden: 99 };
+/* Escudo de la competición (lo guarda el robot); si no carga, se quita y queda el nombre */
+const logo = c => { const e = COMP(c).emblema;
+  return e ? h("img", { class: "emb", src: e, alt: "", loading: "lazy", referrerpolicy: "no-referrer", onerror: ev => ev.target.remove() }) : null; };
 const compsDeLiga = l => (l && l.competiciones && l.competiciones.length ? l.competiciones : ["PD"]);
 const ligasCon = comp => S.ligas.filter(l => compsDeLiga(l).includes(comp));
 /* Competiciones que ves: las de tus ligas (si aún no tienes liga, todas) */
@@ -143,7 +146,7 @@ async function cargar(){
   const uid = S.user.id;
   const [perfil, competiciones, jornadas, partidos, mios, ligas, miembros] = await Promise.all([
     sb.from("perfiles").select("id,alias").eq("id", uid).maybeSingle().then(ok),
-    sb.from("competiciones").select("codigo,nombre,corto,orden").order("orden").then(ok),
+    sb.from("competiciones").select("codigo,nombre,corto,orden,emblema").order("orden").then(ok),
     todo(() => sb.from("jornadas").select("id,competicion,num,nombre,cierre").eq("temporada", CFG.temporada)
       .order("competicion").order("num")),
     todo(() => sb.from("partidos").select("id,jornada_id,inicio,local,visitante,goles_l,goles_v,estado")
@@ -360,7 +363,7 @@ function selectorComp(){
   const actual = compActual();
   return h("div", { class: "comps", role: "tablist", "aria-label": "Competición" }, v.map(c =>
     h("button", { role: "tab", "aria-selected": String(c === actual),
-      onclick: () => { S.comp = c; store.set("comp", c); render(); } }, COMP(c).corto)));
+      onclick: () => { S.comp = c; store.set("comp", c); render(); } }, logo(c), COMP(c).corto)));
 }
 function avisoSinLiga(){
   return h("div", { class: "card" }, h("h3", { text: "Juega con tus amigos" }),
@@ -400,7 +403,7 @@ function vistaJornada(){
   }
   const cer = cerrada(j), vivo = enJuego(j);
   out.append(h("div", { class: "jhead" },
-    h("div", {}, h("div", { class: "kicker", text: COMP(comp).nombre }), h("h2", { text: tituloJ(j) }),
+    h("div", {}, h("div", { class: "kicker" }, logo(comp), COMP(comp).nombre), h("h2", { text: tituloJ(j) }),
       h("span", { class: "status " + (vivo ? "live" : cer ? "closed" : "open"),
         text: vivo ? "En juego" : cer ? (terminada(j) ? "Terminada" : "Cerrada") : "Abierta" })),
     h("div", { class: "when" }, (cer ? "Cerró el " : "Cierra el ") + fmtFecha(j.cierre),
@@ -571,7 +574,7 @@ function clasificacion(){
   let prev = null, pos = 0;
   const etiqueta = j => (varias ? COMP(j.competicion).corto + " " : "") + chipTxt(j);
   return h("section", {}, selectorLiga(),
-    varias ? h("div", { class: "ctags", style: "margin:-4px 0 10px" }, comps.map(c => h("span", { text: COMP(c).corto }))) : null,
+    varias ? h("div", { class: "ctags", style: "margin:-4px 0 10px" }, comps.map(c => h("span", {}, logo(c), COMP(c).corto))) : null,
     h("div", { class: "rank" }, lista.map((r, i) => {
       if (!prev || r.t !== prev.t || r.ex !== prev.ex) pos = i + 1; prev = r;
       const sub = [`${r.ex} ${r.ex === 1 ? "exacto" : "exactos"}`, `${r.sg} ${r.sg === 1 ? "signo" : "signos"}`, `${r.jug} ${r.jug === 1 ? "jornada" : "jornadas"}`];
@@ -635,7 +638,7 @@ function vistaLigas(){
     const texto = `Únete a mi quiniela "${l.nombre}": ${enlaceInvitacion(l)}`;
     out.append(h("div", { class: "card liga-card" },
       h("h3", { text: l.nombre }),
-      h("div", { class: "ctags" }, compsDeLiga(l).map(c => h("span", { text: COMP(c).corto }))),
+      h("div", { class: "ctags" }, compsDeLiga(l).map(c => h("span", {}, logo(c), COMP(c).corto))),
       h("div", { class: "note", text: `${n} ${n === 1 ? "jugador" : "jugadores"} · código` }),
       h("div", { class: "code", text: l.codigo }),
       miembrosLista(l),
@@ -656,7 +659,7 @@ function vistaLigas(){
     h("div", { class: "checks" }, S.competiciones.map(c => h("label", { class: "check" },
       h("input", { type: "checkbox", checked: nuevaLiga.comps.has(c.codigo),
         onchange: e => { e.target.checked ? nuevaLiga.comps.add(c.codigo) : nuevaLiga.comps.delete(c.codigo); } }),
-      c.nombre))),
+      logo(c.codigo), c.nombre))),
     h("p", { class: "note", style: "margin:8px 0 0", text: "La clasificación de la liga suma los puntos de todas las que marques." }),
     h("button", { class: "btn small", style: "margin-top:10px", type: "submit" }, "Crear liga"),
     msgEl("crear")));

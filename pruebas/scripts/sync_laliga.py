@@ -140,11 +140,27 @@ def agrupar(comp, matches):
     return grupos
 
 
+_con_emblema = set()
+
+
+def guardar_emblema(comp, datos):
+    """Guarda la URL del escudo de la competición (una vez por pasada)."""
+    url = (datos.get("competition") or {}).get("emblem")
+    if not url or comp in _con_emblema:
+        return
+    try:
+        supabase("PATCH", f"competiciones?codigo=eq.{comp}", {"emblema": url}, "return=minimal")
+        _con_emblema.add(comp)
+    except Exception as e:
+        print(f"{comp}: no he podido guardar el escudo ({e}).", file=sys.stderr)
+
+
 def sincronizar_comp(comp, ahora):
     datos = pedir(
         f"https://api.football-data.org/v4/competitions/{comp}/matches?season={SEASON}",
         headers={"X-Auth-Token": FD_TOKEN},
     )
+    guardar_emblema(comp, datos)
     grupos = agrupar(comp, datos.get("matches", []))
     if not grupos:
         print(f"{comp}: la API no ha devuelto partidos; no toco nada.")
