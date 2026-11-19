@@ -101,7 +101,8 @@ const BANDERAS = {
 };
 const logo = c => BANDERAS[c] ? h("img", { class: "emb", alt: "", "aria-hidden": "true",
   src: "data:image/svg+xml," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 20">${BANDERAS[c]}</svg>`) }) : null;
-const compsDeLiga = l => (l && l.competiciones && l.competiciones.length ? l.competiciones : ["PD"]);
+const compsDeLiga = l => (l && l.competiciones && l.competiciones.length ? l.competiciones : ["PD"])
+  .slice().sort((a, b) => COMP(a).orden - COMP(b).orden);
 const ligasCon = comp => S.ligas.filter(l => compsDeLiga(l).includes(comp));
 /* Competiciones que ves: las de tus ligas (si aún no tienes liga, todas) */
 function compsVisibles(){
