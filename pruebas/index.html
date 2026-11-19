@@ -51,12 +51,12 @@ button{cursor:pointer}
 /* Competiciones */
 .comps{display:flex;gap:6px;overflow-x:auto;padding:2px 2px 10px;scrollbar-width:none}
 .comps::-webkit-scrollbar{display:none}
-.emb{width:20px;height:20px;object-fit:contain;background:#fff;border-radius:4px;padding:2px;flex:0 0 auto}
+.emb{width:24px;height:16px;border-radius:2px;box-shadow:0 0 0 1px rgba(0,0,0,.18);flex:0 0 auto}
 .comps button{display:inline-flex;align-items:center;gap:7px;flex:0 0 auto;border:1.5px solid var(--line);background:var(--paper);color:var(--muted);border-radius:6px;padding:5px 12px;font:700 17px "Barlow Condensed",sans-serif}
 .comps button[aria-selected="true"]{background:var(--ink);border-color:var(--ink);color:var(--paper)}
 .kicker{display:flex;align-items:center;gap:6px;margin-bottom:2px;font:700 13px "Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.6px;color:var(--red)}
 .ctags{display:flex;flex-wrap:wrap;gap:5px;margin:-2px 0 8px}
-.ctags .emb{width:16px;height:16px;padding:1px;border-radius:3px}
+.ctags .emb{width:18px;height:12px}
 .ctags span{display:inline-flex;align-items:center;gap:5px;font:700 13px "Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.4px;color:var(--red);background:var(--tint);border-radius:4px;padding:1px 7px}
 .checks{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
 .check{display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-weight:600;cursor:pointer}

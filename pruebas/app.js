@@ -86,9 +86,17 @@ const ligaActual = () => S.ligas.find(l => l.id === S.liga) || S.ligas[0] || nul
 const miembrosDe = liga => liga ? S.miembros.filter(m => m.liga_id === liga.id).map(m => m.user_id) : [];
 /* ----- competiciones ----- */
 const COMP = c => S.competiciones.find(x => x.codigo === c) || { codigo: c, nombre: c, corto: c, orden: 99 };
-/* Escudo de la competición (lo guarda el robot); si no carga, se quita y queda el nombre */
-const logo = c => { const e = COMP(c).emblema;
-  return e ? h("img", { class: "emb", src: e, alt: "", loading: "lazy", referrerpolicy: "no-referrer", onerror: ev => ev.target.remove() }) : null; };
+/* Bandera de cada competición, dibujada aquí mismo (sin logos oficiales).
+   Champions: bandera de la Unión Europea. */
+const BANDERAS = {
+  PD: '<rect width="30" height="20" fill="#AA151B"/><rect y="5" width="30" height="10" fill="#F1BF00"/>',
+  PL: '<rect width="30" height="20" fill="#FFFFFF"/><rect x="13" width="4" height="20" fill="#CE1124"/><rect y="8" width="30" height="4" fill="#CE1124"/>',
+  BL1: '<rect width="30" height="20" fill="#000000"/><rect y="6.67" width="30" height="6.67" fill="#DD0000"/><rect y="13.33" width="30" height="6.67" fill="#FFCE00"/>',
+  SA: '<rect width="30" height="20" fill="#FFFFFF"/><rect width="10" height="20" fill="#009246"/><rect x="20" width="10" height="20" fill="#CE2B37"/>',
+  CL: '<rect width="30" height="20" fill="#003399"/><polygon points="21.67,8.90 21.92,9.66 22.72,9.66 22.07,10.13 22.32,10.89 21.67,10.42 21.02,10.89 21.27,10.13 20.62,9.66 21.42,9.66" fill="#FFCC00"/><polygon points="20.78,12.23 21.02,13.00 21.82,13.00 21.18,13.46 21.42,14.22 20.78,13.76 20.13,14.22 20.38,13.46 19.73,13.00 20.53,13.00" fill="#FFCC00"/><polygon points="18.34,14.68 18.58,15.44 19.38,15.44 18.73,15.91 18.98,16.67 18.34,16.20 17.69,16.67 17.94,15.91 17.29,15.44 18.09,15.44" fill="#FFCC00"/><polygon points="15.00,15.57 15.25,16.33 16.05,16.33 15.40,16.80 15.65,17.56 15.00,17.09 14.35,17.56 14.60,16.80 13.95,16.33 14.75,16.33" fill="#FFCC00"/><polygon points="11.67,14.68 11.91,15.44 12.71,15.44 12.06,15.91 12.31,16.67 11.67,16.20 11.02,16.67 11.27,15.91 10.62,15.44 11.42,15.44" fill="#FFCC00"/><polygon points="9.22,12.23 9.47,13.00 10.27,13.00 9.62,13.46 9.87,14.22 9.22,13.76 8.58,14.22 8.82,13.46 8.18,13.00 8.98,13.00" fill="#FFCC00"/><polygon points="8.33,8.90 8.58,9.66 9.38,9.66 8.73,10.13 8.98,10.89 8.33,10.42 7.68,10.89 7.93,10.13 7.28,9.66 8.08,9.66" fill="#FFCC00"/><polygon points="9.22,5.57 9.47,6.33 10.27,6.33 9.62,6.79 9.87,7.55 9.22,7.09 8.58,7.55 8.82,6.79 8.18,6.33 8.98,6.33" fill="#FFCC00"/><polygon points="11.66,3.12 11.91,3.88 12.71,3.88 12.06,4.35 12.31,5.11 11.66,4.64 11.02,5.11 11.27,4.35 10.62,3.88 11.42,3.88" fill="#FFCC00"/><polygon points="15.00,2.23 15.25,2.99 16.05,2.99 15.40,3.46 15.65,4.22 15.00,3.75 14.35,4.22 14.60,3.46 13.95,2.99 14.75,2.99" fill="#FFCC00"/><polygon points="18.34,3.12 18.58,3.88 19.38,3.88 18.73,4.35 18.98,5.11 18.34,4.64 17.69,5.11 17.94,4.35 17.29,3.88 18.09,3.88" fill="#FFCC00"/><polygon points="20.78,5.56 21.02,6.33 21.82,6.33 21.18,6.79 21.42,7.55 20.78,7.09 20.13,7.55 20.38,6.79 19.73,6.33 20.53,6.33" fill="#FFCC00"/>',
+};
+const logo = c => BANDERAS[c] ? h("img", { class: "emb", alt: "", "aria-hidden": "true",
+  src: "data:image/svg+xml," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 20">${BANDERAS[c]}</svg>`) }) : null;
 const compsDeLiga = l => (l && l.competiciones && l.competiciones.length ? l.competiciones : ["PD"]);
 const ligasCon = comp => S.ligas.filter(l => compsDeLiga(l).includes(comp));
 /* Competiciones que ves: las de tus ligas (si aún no tienes liga, todas) */
@@ -146,7 +154,7 @@ async function cargar(){
   const uid = S.user.id;
   const [perfil, competiciones, jornadas, partidos, mios, ligas, miembros] = await Promise.all([
     sb.from("perfiles").select("id,alias").eq("id", uid).maybeSingle().then(ok),
-    sb.from("competiciones").select("codigo,nombre,corto,orden,emblema").order("orden").then(ok),
+    sb.from("competiciones").select("codigo,nombre,corto,orden").order("orden").then(ok),
     todo(() => sb.from("jornadas").select("id,competicion,num,nombre,cierre").eq("temporada", CFG.temporada)
       .order("competicion").order("num")),
     todo(() => sb.from("partidos").select("id,jornada_id,inicio,local,visitante,goles_l,goles_v,estado")
