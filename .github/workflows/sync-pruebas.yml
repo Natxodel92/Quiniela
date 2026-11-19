@@ -45,4 +45,5 @@ jobs:
           SUPABASE_URL: https://qsxxpnypqupkaacdvtsf.supabase.co
           SEASON: "2026"
           VIGILAR: "no"
+          COMPETICIONES: "PD,PL,BL1,SA,CL"
           WORKFLOW: sync-pruebas.yml

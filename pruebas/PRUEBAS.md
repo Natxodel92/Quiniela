@@ -35,6 +35,13 @@ su propia web en GitHub Pages y su propio robot de resultados.
    mismo secreto `FOOTBALL_DATA_TOKEN` de siempre.
 3. Actions → Sincronizar LaLiga (PRUEBAS) → Run workflow.
 
+## Cambios de base de datos
+
+- `schema.sql`: la base de partida (igual que la web buena hoy).
+- `migraciones/001_competiciones.sql`: varias competiciones (LaLiga, Premier,
+  Bundesliga, Serie A, Champions). **Aplicada en pruebas** el 19/11/2026.
+  Pendiente de aplicar en la buena junto con el código nuevo.
+
 ## Pasar un cambio a la web buena
 
 Nunca se vuelve a ejecutar `schema.sql` entero en el proyecto bueno: se prepara

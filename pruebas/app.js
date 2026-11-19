@@ -1,5 +1,5 @@
 "use strict";
-/* La Quiniela · app web (Supabase + GitHub Pages) */
+/* El Porrazo · app web (Supabase + GitHub Pages) · varias competiciones */
 
 const CFG = window.QUINIELA_CONFIG || {};
 const app = document.getElementById("app");
@@ -19,9 +19,9 @@ const store = {
 
 const S = {
   loading: true, error: null, user: null, perfil: null,
-  jornadas: [], partidos: [], porJornada: {}, mios: {}, ajenos: {},
+  competiciones: [], jornadas: [], partidos: [], porJornada: {}, mios: {}, ajenos: {},
   ligas: [], miembros: [], perfiles: {}, entregados: {},
-  liga: store.get("liga"), tab: "jornada", sel: null, selFijada: false,
+  liga: store.get("liga"), comp: store.get("comp"), tab: "jornada", selPor: {}, selFijada: {},
   draft: {}, msg: {}, login: { modo: "nuevo" }, pending: false
 };
 
@@ -46,7 +46,7 @@ const ahora = () => Date.now();
 const sign = (a, b) => a > b ? "1" : a === b ? "X" : "2";
 const toInt = v => { if (v === "" || v == null) return null; const n = Number(v); return Number.isInteger(n) && n >= 0 && n <= 30 ? n : null; };
 const cerrada = j => ahora() >= new Date(j.cierre).getTime();
-const EN_JUEGO = new Set(["IN_PLAY", "PAUSED"]);
+const EN_JUEGO = new Set(["IN_PLAY", "PAUSED", "EXTRA_TIME", "PENALTY_SHOOTOUT"]);
 const ACABADO = new Set(["FINISHED", "AWARDED"]);
 const APLAZADO = new Set(["POSTPONED", "CANCELLED", "SUSPENDED"]);
 
@@ -84,10 +84,25 @@ const nombre = uid => (S.perfiles[uid] && S.perfiles[uid].alias) || "Jugador";
 const partidosDe = j => S.porJornada[j.id] || [];
 const ligaActual = () => S.ligas.find(l => l.id === S.liga) || S.ligas[0] || null;
 const miembrosDe = liga => liga ? S.miembros.filter(m => m.liga_id === liga.id).map(m => m.user_id) : [];
-/* Cada liga lleva su propio marcador: solo cuentan las jornadas que
-   cerraron después de crear la liga (las anteriores ya estaban jugadas). */
-const cuentaEnLiga = (j, liga) => !!liga && new Date(j.cierre).getTime() >= new Date(liga.creado).getTime();
-const primeraDeLiga = liga => S.jornadas.find(j => cuentaEnLiga(j, liga)) || null;
+/* ----- competiciones ----- */
+const COMP = c => S.competiciones.find(x => x.codigo === c) || { codigo: c, nombre: c, corto: c, orden: 99 };
+const compsDeLiga = l => (l && l.competiciones && l.competiciones.length ? l.competiciones : ["PD"]);
+const ligasCon = comp => S.ligas.filter(l => compsDeLiga(l).includes(comp));
+/* Competiciones que ves: las de tus ligas (si aún no tienes liga, todas) */
+function compsVisibles(){
+  const mias = new Set(S.ligas.flatMap(compsDeLiga));
+  const lista = S.competiciones.filter(c => !S.ligas.length || mias.has(c.codigo)).map(c => c.codigo);
+  return lista.length ? lista : ["PD"];
+}
+function compActual(){ const v = compsVisibles(); return v.includes(S.comp) ? S.comp : v[0]; }
+const jornadasDe = comp => S.jornadas.filter(j => j.competicion === comp);
+const tituloJ = j => j.nombre || "Jornada " + j.num;
+const FASES_CL = { 9: "PO-1", 10: "PO-2", 11: "8º-1", 12: "8º-2", 13: "4º-1", 14: "4º-2", 15: "SF-1", 16: "SF-2", 17: "Final" };
+const chipTxt = j => j.competicion === "CL" && j.num > 8 ? (FASES_CL[j.num] || "E" + j.num) : "J" + j.num;
+/* Cada liga lleva su propio marcador: solo cuentan las jornadas de sus
+   competiciones que cerraron después de crear la liga. */
+const cuentaEnLiga = (j, liga) => !!liga && compsDeLiga(liga).includes(j.competicion) &&
+  new Date(j.cierre).getTime() >= new Date(liga.creado).getTime();
 function pickDe(uid, partidoId){
   const src = uid === S.user.id ? S.mios : S.ajenos[uid];
   const p = src && src[partidoId];
@@ -107,7 +122,7 @@ function linea(uid, j){
   }
   return { t, ex, sg, hay, jugado };
 }
-function siguiente(){ return S.jornadas.find(j => !cerrada(j)) || null; }
+function siguiente(comp){ return S.jornadas.find(j => j.competicion === comp && !cerrada(j)) || null; }
 function enJuego(j){ return partidosDe(j).some(p => EN_JUEGO.has(p.estado)); }
 function terminada(j){ const ps = partidosDe(j); return ps.length > 0 && ps.every(p => ACABADO.has(p.estado)); }
 
@@ -126,16 +141,19 @@ function ok(r){ if (r.error) throw r.error; return r.data; }
 
 async function cargar(){
   const uid = S.user.id;
-  const [perfil, jornadas, partidos, mios, ligas, miembros] = await Promise.all([
+  const [perfil, competiciones, jornadas, partidos, mios, ligas, miembros] = await Promise.all([
     sb.from("perfiles").select("id,alias").eq("id", uid).maybeSingle().then(ok),
-    sb.from("jornadas").select("id,num,cierre").eq("temporada", CFG.temporada).order("num").then(ok),
+    sb.from("competiciones").select("codigo,nombre,corto,orden").order("orden").then(ok),
+    todo(() => sb.from("jornadas").select("id,competicion,num,nombre,cierre").eq("temporada", CFG.temporada)
+      .order("competicion").order("num")),
     todo(() => sb.from("partidos").select("id,jornada_id,inicio,local,visitante,goles_l,goles_v,estado")
-      .like("jornada_id", CFG.temporada + "-%").order("id")),
+      .like("jornada_id", "%-" + CFG.temporada + "-%").order("id")),
     todo(() => sb.from("pronosticos").select("partido_id,goles_l,goles_v,actualizado").eq("user_id", uid).order("partido_id")),
-    sb.from("ligas").select("id,nombre,codigo,owner,creado").order("creado").then(ok),
+    sb.from("ligas").select("id,nombre,codigo,owner,creado,competiciones").order("creado").then(ok),
     sb.from("miembros").select("liga_id,user_id").then(ok)
   ]);
   S.perfil = perfil;
+  S.competiciones = competiciones;
   S.jornadas = jornadas;
   S.partidos = partidos;
   S.porJornada = {};
@@ -159,9 +177,10 @@ async function cargar(){
       .in("user_id", otros).order("user_id").order("partido_id"));
     for (const f of filas) (S.ajenos[f.user_id] ||= {})[f.partido_id] = f;
   }
-  if (!S.selFijada){
-    const sig = siguiente();
-    S.sel = sig ? sig.num : (S.jornadas.length ? S.jornadas[S.jornadas.length - 1].num : 1);
+  for (const c of compsVisibles()){
+    if (S.selFijada[c]) continue;
+    const js = jornadasDe(c), sig = siguiente(c);
+    S.selPor[c] = sig ? sig.num : (js.length ? js[js.length - 1].num : 1);
   }
   S.entregados = {};
 }
@@ -213,7 +232,7 @@ function vista(){
 
 function cabecera(){
   return h("header", { class: "mast" },
-    h("div", {}, h("h1", { text: "El Porrazo" }), h("p", { text: "Primera División " + (CFG.temporada || "").replace("-", "/") })),
+    h("div", {}, h("h1", { text: "El Porrazo" }), h("p", { text: "Temporada " + (CFG.temporada || "").replace("-", "/") })),
     S.user && S.perfil ? h("div", { class: "me" }, "Juegas como", h("b", { text: S.perfil.alias }),
       h("button", { class: "linkbtn", onclick: salir }, "Salir")) : null);
 }
@@ -241,7 +260,7 @@ function pantallaLogin(){
       autocomplete: nuevo ? "new-password" : "current-password", placeholder: "••••", "aria-label": label, oninput: e => set(e.target.value) }))];
   return h("section", {},
     h("div", { class: "hero" }, h("div", { class: "ball", text: "1 X 2" }),
-      h("p", { text: "Pronostica los 10 partidos de cada jornada y pica a tus amigos en vuestra liga privada." })),
+      h("p", { text: "Pronostica los partidos de LaLiga, Premier, Bundesliga, Serie A y Champions y pica a tus amigos en vuestra liga privada." })),
     h("nav", { class: "tabs", role: "tablist" }, [["nuevo", "Soy nuevo"], ["entrar", "Ya juego"]].map(([m, l]) =>
       h("button", { type: "button", role: "tab", "aria-selected": String(L.modo === m), onclick: cambiar(m) }, l))),
     h("form", { class: "card", onsubmit: enviar },
@@ -323,10 +342,25 @@ function pantallaAlias(){
 }
 
 /* ----- selector de liga ----- */
-function selectorLiga(){
-  if (S.ligas.length < 2) return null;
+function selectorLiga(lista, actual){
+  lista = lista || S.ligas; actual = actual || ligaActual();
+  if (lista.length < 2) return null;
   return h("select", { class: "liga", "aria-label": "Liga", onchange: e => { S.liga = e.target.value; store.set("liga", S.liga); render(); } },
-    S.ligas.map(l => h("option", { value: l.id, selected: l.id === (ligaActual() || {}).id }, l.nombre)));
+    lista.map(l => h("option", { value: l.id, selected: l.id === (actual || {}).id }, l.nombre)));
+}
+/* La liga que se enseña con una jornada: la elegida, si juega esa competición */
+function ligaPara(comp){
+  const ls = ligasCon(comp), a = ligaActual();
+  return ls.find(l => a && l.id === a.id) || ls[0] || null;
+}
+/* ----- selector de competición ----- */
+function selectorComp(){
+  const v = compsVisibles();
+  if (v.length < 2) return null;
+  const actual = compActual();
+  return h("div", { class: "comps", role: "tablist", "aria-label": "Competición" }, v.map(c =>
+    h("button", { role: "tab", "aria-selected": String(c === actual),
+      onclick: () => { S.comp = c; store.set("comp", c); render(); } }, COMP(c).corto)));
 }
 function avisoSinLiga(){
   return h("div", { class: "card" }, h("h3", { text: "Juega con tus amigos" }),
@@ -335,14 +369,14 @@ function avisoSinLiga(){
 }
 
 /* ----- jornada ----- */
-function chips(){
-  const sig = siguiente();
+function chips(comp){
+  const sig = siguiente(comp);
   const bar = h("div", { class: "chips" });
-  for (let n = 1; n <= 38; n++){
-    const j = S.jornadas.find(x => x.num === n);
-    const cls = "chip" + (!j ? " nodata" : sig && n === sig.num ? " next" : cerrada(j) ? " done" : "");
-    bar.append(h("button", { class: cls, "aria-pressed": String(n === S.sel), "aria-label": "Jornada " + n,
-      onclick: () => { S.sel = n; S.selFijada = true; render(); } }, "J" + n));
+  for (const j of jornadasDe(comp)){
+    const n = j.num;
+    const cls = "chip" + (sig && n === sig.num ? " next" : cerrada(j) ? " done" : "");
+    bar.append(h("button", { class: cls, "aria-pressed": String(n === S.selPor[comp]), "aria-label": tituloJ(j),
+      onclick: () => { S.selPor[comp] = n; S.selFijada[comp] = true; render(); } }, chipTxt(j)));
   }
   requestAnimationFrame(() => {
     const el = bar.querySelector('[aria-pressed="true"]');
@@ -354,27 +388,31 @@ function chips(){
 function vistaJornada(){
   const out = h("section", {});
   if (!S.ligas.length) out.append(avisoSinLiga());
-  out.append(chips());
-  if (siguiente()) out.append(h("p", { class: "legend" }, h("i"), "Próxima jornada"));
-  const j = S.jornadas.find(x => x.num === S.sel);
+  const comp = compActual();
+  out.append(selectorComp());
+  out.append(chips(comp));
+  if (siguiente(comp)) out.append(h("p", { class: "legend" }, h("i"), "Próxima jornada"));
+  const j = jornadasDe(comp).find(x => x.num === S.selPor[comp]);
   if (!j || !partidosDe(j).length){
-    out.append(h("div", { class: "jhead" }, h("h2", { text: "Jornada " + S.sel })),
-      h("div", { class: "empty" }, h("strong", { text: "Partidos sin cargar" }), "Aparecerán solos en cuanto LaLiga los publique."));
+    out.append(h("div", { class: "jhead" }, h("h2", { text: COMP(comp).nombre })),
+      h("div", { class: "empty" }, h("strong", { text: "Partidos sin cargar" }), "Aparecerán solos en cuanto se publique el calendario."));
     return out;
   }
   const cer = cerrada(j), vivo = enJuego(j);
   out.append(h("div", { class: "jhead" },
-    h("div", {}, h("h2", { text: "Jornada " + j.num }),
+    h("div", {}, h("div", { class: "kicker", text: COMP(comp).nombre }), h("h2", { text: tituloJ(j) }),
       h("span", { class: "status " + (vivo ? "live" : cer ? "closed" : "open"),
         text: vivo ? "En juego" : cer ? (terminada(j) ? "Terminada" : "Cerrada") : "Abierta" })),
     h("div", { class: "when" }, (cer ? "Cerró el " : "Cierra el ") + fmtFecha(j.cierre),
       cer ? null : h("br"), cer ? null : h("span", { "data-falta": j.cierre, text: falta(j.cierre) }))));
   out.append(cer ? boletoCerrado(j) : boletoAbierto(j));
-  const liga = ligaActual();
+  const liga = ligaPara(comp);
   if (liga){
-    const sel = selectorLiga();
+    const sel = selectorLiga(ligasCon(comp), liga);
     const card = cer ? fotoCard(j, liga) : entregadosCard(j, liga);
     out.append(h("div", { style: "margin-top:14px" }, sel, card));
+  } else if (S.ligas.length){
+    out.append(h("p", { class: "note", text: `Ninguna de tus ligas juega la ${COMP(comp).nombre}: estos pronósticos no suman en ninguna clasificación.` }));
   }
   out.append(h("p", { class: "note" }, "Marcador exacto: 5 puntos. Si no, 1 punto por el signo (1, X o 2) y 1 punto por cada equipo al que le aciertes los goles."));
   return out;
@@ -509,17 +547,20 @@ function fotoCard(j, liga){
 function clasificacion(){
   const liga = ligaActual();
   if (!liga) return h("section", {}, avisoSinLiga());
+  const comps = compsDeLiga(liga);
+  const varias = comps.length > 1;
   const tot = {};
-  for (const uid of miembrosDe(liga)) tot[uid] = { uid, t: 0, ex: 0, sg: 0, jug: 0, wins: 0, ult: null };
-  const cerradas = S.jornadas.filter(j => cerrada(j) && cuentaEnLiga(j, liga));
-  const primera = primeraDeLiga(liga);
-  const desde = primera ? `Esta liga cuenta desde la jornada ${primera.num}.` : "Esta liga empezará a contar en la próxima jornada que se publique.";
+  for (const uid of miembrosDe(liga)) tot[uid] = { uid, t: 0, ex: 0, sg: 0, jug: 0, wins: 0, ult: null, por: {} };
+  const cerradas = S.jornadas.filter(j => cerrada(j) && cuentaEnLiga(j, liga))
+    .sort((a, b) => a.cierre.localeCompare(b.cierre));
+  const desde = `Cuentan las jornadas de ${comps.map(c => COMP(c).nombre).join(", ")} que cierran desde que se creó la liga (${new Date(liga.creado).toLocaleDateString("es-ES", { day: "numeric", month: "short" })}).`;
   for (const j of cerradas){
     let best = -1; const ls = {};
     for (const uid in tot){
       const l = linea(uid, j); ls[uid] = l;
       if (!l.jugado) continue;
       const r = tot[uid]; r.jug++; r.t += l.t; r.ex += l.ex; r.sg += l.sg;
+      r.por[j.competicion] = (r.por[j.competicion] || 0) + l.t;
       if (l.hay) best = Math.max(best, l.t);
     }
     if (terminada(j) && best >= 0) for (const uid in tot) if (ls[uid].jugado && ls[uid].t === best) tot[uid].wins++;
@@ -528,18 +569,22 @@ function clasificacion(){
   if (ultima) for (const uid in tot){ const l = linea(uid, ultima); if (l.jugado) tot[uid].ult = l.t; }
   const lista = Object.values(tot).sort((a, b) => b.t - a.t || b.ex - a.ex || b.wins - a.wins || nombre(a.uid).localeCompare(nombre(b.uid)));
   let prev = null, pos = 0;
+  const etiqueta = j => (varias ? COMP(j.competicion).corto + " " : "") + chipTxt(j);
   return h("section", {}, selectorLiga(),
+    varias ? h("div", { class: "ctags", style: "margin:-4px 0 10px" }, comps.map(c => h("span", { text: COMP(c).corto }))) : null,
     h("div", { class: "rank" }, lista.map((r, i) => {
       if (!prev || r.t !== prev.t || r.ex !== prev.ex) pos = i + 1; prev = r;
       const sub = [`${r.ex} ${r.ex === 1 ? "exacto" : "exactos"}`, `${r.sg} ${r.sg === 1 ? "signo" : "signos"}`, `${r.jug} ${r.jug === 1 ? "jornada" : "jornadas"}`];
       if (r.wins) sub.push(`${r.wins} ${r.wins === 1 ? "victoria" : "victorias"}`);
-      if (r.ult != null) sub.push(`J${ultima.num}: +${r.ult}`);
+      if (r.ult != null) sub.push(`${etiqueta(ultima)}: +${r.ult}`);
+      if (varias && r.jug) sub.push(comps.filter(c => r.por[c] != null).map(c => `${COMP(c).corto} ${r.por[c]}`).join(" / "));
       return h("div", { class: "rk" + (pos === 1 && r.t > 0 ? " lead" : "") + (r.uid === S.user.id ? " mine" : "") },
         h("div", { class: "pos", text: String(pos) }),
         h("div", { style: "min-width:0" }, h("div", { class: "nm", text: nombre(r.uid) }), h("div", { class: "sub", text: sub.join(" · ") })),
         h("div", { class: "big" }, String(r.t), h("small", { text: "puntos" })));
     })),
-    h("p", { class: "note" }, desde + " Desempate: más resultados exactos. Ganar una jornada cuenta cuando han acabado todos sus partidos."));
+    h("p", { class: "note" }, desde + " Desempate: más resultados exactos. Ganar una jornada cuenta cuando han acabado todos sus partidos."),
+    h("p", { class: "note" }, "Champions: en las eliminatorias cuenta el resultado a los 90 minutos, sin prórroga ni penaltis."));
 }
 
 /* ----- ligas ----- */
@@ -590,6 +635,7 @@ function vistaLigas(){
     const texto = `Únete a mi quiniela "${l.nombre}": ${enlaceInvitacion(l)}`;
     out.append(h("div", { class: "card liga-card" },
       h("h3", { text: l.nombre }),
+      h("div", { class: "ctags" }, compsDeLiga(l).map(c => h("span", { text: COMP(c).corto }))),
       h("div", { class: "note", text: `${n} ${n === 1 ? "jugador" : "jugadores"} · código` }),
       h("div", { class: "code", text: l.codigo }),
       miembrosLista(l),
@@ -599,12 +645,20 @@ function vistaLigas(){
         h("button", { class: "btn ghost small", onclick: () => salirLiga(l) }, S.msg["salir_" + l.id] ? "¿Seguro?" : "Salir")),
       msgEl(key)));
   }
-  let nombreNueva = "", codigo = "";
-  out.append(h("form", { class: "card", onsubmit: e => { e.preventDefault(); crearLiga(nombreNueva); } },
+  let codigo = "";
+  if (!nuevaLiga.comps) nuevaLiga.comps = new Set(["PD"]);
+  out.append(h("form", { class: "card", onsubmit: e => { e.preventDefault(); crearLiga(nuevaLiga.nombre, [...nuevaLiga.comps]); } },
     h("h3", { text: "Crear una liga" }),
     h("div", { class: "field" },
-      h("input", { type: "text", maxlength: "40", placeholder: "Nombre de la liga", "aria-label": "Nombre de la liga", oninput: e => { nombreNueva = e.target.value; } }),
-      h("button", { class: "btn small", type: "submit" }, "Crear")),
+      h("input", { type: "text", maxlength: "40", placeholder: "Nombre de la liga", "aria-label": "Nombre de la liga",
+        value: nuevaLiga.nombre, oninput: e => { nuevaLiga.nombre = e.target.value; } })),
+    h("span", { class: "lbl", text: "¿Qué competiciones juega?" }),
+    h("div", { class: "checks" }, S.competiciones.map(c => h("label", { class: "check" },
+      h("input", { type: "checkbox", checked: nuevaLiga.comps.has(c.codigo),
+        onchange: e => { e.target.checked ? nuevaLiga.comps.add(c.codigo) : nuevaLiga.comps.delete(c.codigo); } }),
+      c.nombre))),
+    h("p", { class: "note", style: "margin:8px 0 0", text: "La clasificación de la liga suma los puntos de todas las que marques." }),
+    h("button", { class: "btn small", style: "margin-top:10px", type: "submit" }, "Crear liga"),
     msgEl("crear")));
   out.append(h("form", { class: "card", onsubmit: e => { e.preventDefault(); unirse(codigo); } },
     h("h3", { text: "Unirme con un código" }),
@@ -612,15 +666,18 @@ function vistaLigas(){
       h("input", { type: "text", maxlength: "6", placeholder: "ABC123", style: "text-transform:uppercase", "aria-label": "Código de liga", oninput: e => { codigo = e.target.value; } }),
       h("button", { class: "btn small", type: "submit" }, "Unirme")),
     msgEl("unirse")));
-  out.append(h("p", { class: "note" }, "Tu quiniela es la misma en todas tus ligas: la rellenas una vez y cuenta en todas."));
+  out.append(h("p", { class: "note" }, "Tus pronósticos son los mismos en todas tus ligas: los rellenas una vez y cada liga suma los de sus competiciones."));
   out.append(cuentaCard());
   return out;
 }
-async function crearLiga(n){
+const nuevaLiga = { nombre: "", comps: null };
+async function crearLiga(n, comps){
   n = (n || "").trim();
   if (!n) return flash("crear", "err", "Ponle un nombre a la liga.");
-  const { data, error } = await sb.rpc("crear_liga", { p_nombre: n });
+  if (!comps.length) return flash("crear", "err", "Marca al menos una competición.");
+  const { data, error } = await sb.rpc("crear_liga", { p_nombre: n, p_competiciones: comps });
   if (error) return flash("crear", "err", "No se ha podido crear la liga.");
+  nuevaLiga.nombre = ""; nuevaLiga.comps = null;
   S.liga = data.id; store.set("liga", S.liga);
   await recargar();
   flash("liga_" + data.id, "ok", "Liga creada. Invita a tus amigos.");

@@ -1,6 +1,7 @@
 """
-Robot de La Quiniela: baja jornadas, horarios y resultados de Primera
-División de football-data.org y los guarda en Supabase.
+Robot de El Porrazo: baja jornadas, horarios y resultados de varias
+competiciones (LaLiga, Premier, Bundesliga, Serie A y Champions) de
+football-data.org y los guarda en Supabase.
 
 Lo ejecuta GitHub Actions (.github/workflows/sync.yml). GitHub lanza las
 tareas programadas cuando le va bien (a veces con horas de retraso), así que
@@ -27,15 +28,25 @@ SB_URL = os.environ["SUPABASE_URL"].strip().rstrip("/")
 SB_KEY = os.environ["SUPABASE_SERVICE_KEY"].strip()
 SEASON = int(os.environ.get("SEASON", "2026"))           # año en que empieza la temporada
 TEMPORADA = f"{SEASON}-{str(SEASON + 1)[2:]}"            # '2026-27'
+# Competiciones a bajar (códigos de football-data.org). Todas entran en el plan gratis.
+COMPETICIONES = [c.strip() for c in os.environ.get("COMPETICIONES", "PD,PL,BL1,SA,CL").split(",") if c.strip()]
+# Nombres en castellano solo para equipos españoles: LaLiga y Champions
+CON_NOMBRES_ES = {"PD", "CL"}
+# Champions: la fase de liga son las jornadas 1-8; las eliminatorias van
+# después con número fijo, para que no cambie cuando se sortee la siguiente.
+FASES_CL = {
+    "PLAYOFFS": (9, "Playoff"), "LAST_16": (11, "Octavos"), "QUARTER_FINALS": (13, "Cuartos"),
+    "SEMI_FINALS": (15, "Semifinales"), "FINAL": (17, "Final"),
+}
 
 MADRID = ZoneInfo("Europe/Madrid")
 CADA = 120                       # segundos entre pasadas con partidos en juego
 ANTES = timedelta(minutes=10)    # empieza a vigilar 10 min antes del pitido
 LIMITE = 5.5 * 3600              # GitHub corta el trabajo a las 6 h
 ACABADO = {"FINISHED", "AWARDED"}
-EN_JUEGO = {"IN_PLAY", "PAUSED"}
+EN_JUEGO = {"IN_PLAY", "PAUSED", "EXTRA_TIME", "PENALTY_SHOOTOUT"}
 
-CON_MARCADOR = {"IN_PLAY", "PAUSED", "FINISHED", "AWARDED"}
+CON_MARCADOR = EN_JUEGO | {"FINISHED", "AWARDED"}
 SIN_JUGAR = {"POSTPONED", "CANCELLED", "SUSPENDED"}
 
 # Nombres en castellano, buscando por trozos del nombre oficial
@@ -53,7 +64,9 @@ NOMBRES = [
 ]
 
 
-def nombre(team):
+def nombre(team, comp="PD"):
+    if comp not in CON_NOMBRES_ES:
+        return team.get("shortName") or team.get("name") or "?"
     # Primero el nombre corto ("Espanyol"), luego el oficial ("RCD Espanyol de Barcelona")
     for campo in ("shortName", "name"):
         texto = (team.get(campo) or "").lower()
@@ -88,47 +101,82 @@ def fecha(txt):
     return datetime.fromisoformat(txt.replace("Z", "+00:00"))
 
 
-def sincronizar():
+def marcador(m):
+    """Goles a los 90 minutos (más el descuento). En una eliminatoria con
+    prórroga o penaltis, la quiniela cuenta el resultado del tiempo reglamentario."""
+    score = m.get("score") or {}
+    if score.get("duration") in ("EXTRA_TIME", "PENALTY_SHOOTOUT"):
+        rt = score.get("regularTime") or {}
+        if rt.get("home") is not None:
+            return rt
+    return score.get("fullTime") or {}
+
+
+def agrupar(comp, matches):
+    """Devuelve {num: (nombre_o_None, [partidos])}."""
+    grupos = {}
+    if comp != "CL":
+        for m in matches:
+            if m.get("matchday"):
+                grupos.setdefault(m["matchday"], (None, []))[1].append(m)
+        return grupos
+    vistos = set()
+    for m in sorted(matches, key=lambda x: x["utcDate"]):
+        if not (m["homeTeam"].get("id") and m["awayTeam"].get("id")):
+            continue                     # eliminatoria aún sin sortear
+        fase = m.get("stage")
+        if fase == "LEAGUE_STAGE" and m.get("matchday"):
+            grupos.setdefault(m["matchday"], (None, []))[1].append(m)
+        elif fase in FASES_CL:
+            base, txt = FASES_CL[fase]
+            if fase == "FINAL":
+                num, etiqueta = base, txt
+            else:
+                pareja = (fase, frozenset((m["homeTeam"]["id"], m["awayTeam"]["id"])))
+                vuelta = pareja in vistos
+                vistos.add(pareja)
+                num, etiqueta = base + vuelta, f"{txt} · {'vuelta' if vuelta else 'ida'}"
+            grupos.setdefault(num, (etiqueta, []))[1].append(m)
+    return grupos
+
+
+def sincronizar_comp(comp, ahora):
     datos = pedir(
-        f"https://api.football-data.org/v4/competitions/PD/matches?season={SEASON}",
+        f"https://api.football-data.org/v4/competitions/{comp}/matches?season={SEASON}",
         headers={"X-Auth-Token": FD_TOKEN},
     )
-    partidos_api = [m for m in datos.get("matches", []) if m.get("matchday")]
-    if not partidos_api:
-        print("La API no ha devuelto partidos; no toco nada.")
+    grupos = agrupar(comp, datos.get("matches", []))
+    if not grupos:
+        print(f"{comp}: la API no ha devuelto partidos; no toco nada.")
         return []
 
-    ahora = datetime.now(timezone.utc)
     previas = {
         j["id"]: j["cierre"]
-        for j in supabase("GET", f"jornadas?temporada=eq.{TEMPORADA}&select=id,cierre") or []
+        for j in supabase("GET", f"jornadas?competicion=eq.{comp}&temporada=eq.{TEMPORADA}&select=id,cierre") or []
     }
 
-    por_jornada = {}
-    for m in partidos_api:
-        por_jornada.setdefault(m["matchday"], []).append(m)
-
     jornadas, partidos = [], []
-    for num, lista in sorted(por_jornada.items()):
-        jid = f"{TEMPORADA}-{num:02d}"
+    for num, (etiqueta, lista) in sorted(grupos.items()):
+        jid = f"{comp}-{TEMPORADA}-{num:02d}"
         validos = [m for m in lista if m["status"] not in SIN_JUGAR] or lista
         cierre = min(m["utcDate"] for m in validos)
         anterior = previas.get(jid)
         if anterior and fecha(anterior) <= ahora:
             cierre = anterior          # una jornada cerrada no se vuelve a abrir
-        jornadas.append({"id": jid, "temporada": TEMPORADA, "num": num, "cierre": cierre})
+        jornadas.append({"id": jid, "competicion": comp, "temporada": TEMPORADA, "num": num,
+                         "nombre": etiqueta, "cierre": cierre})
 
         for m in lista:
-            marcador = (m.get("score") or {}).get("fullTime") or {}
-            con = m["status"] in CON_MARCADOR and marcador.get("home") is not None
+            goles = marcador(m)
+            con = m["status"] in CON_MARCADOR and goles.get("home") is not None
             partidos.append({
                 "id": m["id"],
                 "jornada_id": jid,
                 "inicio": m["utcDate"],
-                "local": nombre(m["homeTeam"]),
-                "visitante": nombre(m["awayTeam"]),
-                "goles_l": marcador.get("home") if con else None,
-                "goles_v": marcador.get("away") if con else None,
+                "local": nombre(m["homeTeam"], comp),
+                "visitante": nombre(m["awayTeam"], comp),
+                "goles_l": goles.get("home") if con else None,
+                "goles_v": goles.get("away") if con else None,
                 "estado": m["status"],
             })
 
@@ -137,12 +185,27 @@ def sincronizar():
         supabase("POST", "partidos?on_conflict=id", partidos[i:i + 200],
                  "resolution=merge-duplicates,return=minimal")
 
-    jugando = sum(1 for p in partidos if p["estado"] in {"IN_PLAY", "PAUSED"})
-    acabados = sum(1 for p in partidos if p["estado"] in {"FINISHED", "AWARDED"})
+    jugando = sum(1 for p in partidos if p["estado"] in EN_JUEGO)
+    acabados = sum(1 for p in partidos if p["estado"] in ACABADO)
     hora = datetime.now(MADRID).strftime("%H:%M")
-    print(f"[{hora}] OK {TEMPORADA}: {len(jornadas)} jornadas, {len(partidos)} partidos "
+    print(f"[{hora}] OK {comp} {TEMPORADA}: {len(jornadas)} jornadas, {len(partidos)} partidos "
           f"({acabados} acabados, {jugando} en juego).", flush=True)
     return partidos
+
+
+def sincronizar():
+    """Baja todas las competiciones. Si una falla, sigue con las demás."""
+    ahora = datetime.now(timezone.utc)
+    todos, fallos = [], []
+    for comp in COMPETICIONES:
+        try:
+            todos += sincronizar_comp(comp, ahora)
+        except Exception as e:
+            fallos.append(comp)
+            print(f"{comp}: fallo ({e}); sigo con las demás.", file=sys.stderr, flush=True)
+    if fallos and len(fallos) == len(COMPETICIONES):
+        raise RuntimeError("No se ha podido bajar ninguna competición.")
+    return todos
 
 
 def pendientes(partidos):
