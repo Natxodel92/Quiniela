@@ -373,9 +373,22 @@ function selectorComp(){
   const v = compsVisibles();
   if (v.length < 2) return null;
   const actual = compActual();
-  return h("div", { class: "comps", role: "tablist", "aria-label": "Competición" }, v.map(c =>
+  /* Al redibujar, la fila conserva su desplazamiento (si no, vuelve al
+     principio cada vez que eliges una competición del final). */
+  const bar = h("div", { class: "comps", role: "tablist", "aria-label": "Competición",
+    onscroll: e => { S.compsScroll = e.target.scrollLeft; } }, v.map(c =>
     h("button", { role: "tab", "aria-selected": String(c === actual),
-      onclick: () => { S.comp = c; store.set("comp", c); render(); } }, logo(c), COMP(c).corto)));
+      onclick: e => { S.compsScroll = e.currentTarget.parentNode.scrollLeft; S.comp = c; store.set("comp", c); render(); } },
+      logo(c), COMP(c).corto)));
+  requestAnimationFrame(() => {
+    bar.scrollLeft = S.compsScroll || 0;
+    const el = bar.querySelector('[aria-selected="true"]');
+    if (!el) return;
+    const r = el.getBoundingClientRect(), b = bar.getBoundingClientRect();
+    if (r.right <= b.left || r.left >= b.right)              // si quedó totalmente fuera, céntrala
+      bar.scrollLeft += (r.left + r.width / 2) - (b.left + b.width / 2);
+  });
+  return bar;
 }
 function avisoSinLiga(){
   return h("div", { class: "card" }, h("h3", { text: "Juega con tus amigos" }),
