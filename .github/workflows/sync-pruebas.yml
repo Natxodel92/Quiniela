@@ -1,0 +1,44 @@
+name: Sincronizar LaLiga (PRUEBAS)
+
+# Robot del entorno de pruebas (carpeta pruebas/). Escribe en el Supabase de
+# PRUEBAS, nunca en el bueno. Pasa una vez por hora y no se queda vigilando
+# partidos en directo, para no gastar las llamadas a football-data.org que
+# necesita el robot de la web buena (comparten token).
+
+on:
+  schedule:
+    - cron: "37 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: sync-laliga-pruebas
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY_PRUEBAS }}
+    steps:
+      - name: Falta la clave de pruebas
+        if: env.SUPABASE_SERVICE_KEY == ''
+        run: echo "Añade el secreto SUPABASE_SERVICE_KEY_PRUEBAS en Settings > Secrets and variables > Actions. Hasta entonces no hago nada."
+      - uses: actions/checkout@v4
+        if: env.SUPABASE_SERVICE_KEY != ''
+      - uses: actions/setup-python@v5
+        if: env.SUPABASE_SERVICE_KEY != ''
+        with:
+          python-version: "3.12"
+      - name: Bajar jornadas y resultados (PRUEBAS)
+        if: env.SUPABASE_SERVICE_KEY != ''
+        run: python pruebas/scripts/sync_laliga.py
+        env:
+          FOOTBALL_DATA_TOKEN: ${{ secrets.FOOTBALL_DATA_TOKEN }}
+          SUPABASE_URL: https://qsxxpnypqupkaacdvtsf.supabase.co
+          SEASON: "2026"
+          VIGILAR: "no"
+          WORKFLOW: sync-pruebas.yml
