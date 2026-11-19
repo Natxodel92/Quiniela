@@ -26,7 +26,11 @@ jobs:
     steps:
       - name: Falta la clave de pruebas
         if: env.SUPABASE_SERVICE_KEY == ''
-        run: echo "Añade el secreto SUPABASE_SERVICE_KEY_PRUEBAS en Settings > Secrets and variables > Actions. Hasta entonces no hago nada."
+        # Si lo lanzas a mano y falta la clave, sale en rojo para que se vea;
+        # en las pasadas automáticas solo avisa, para no llenarte el correo de fallos.
+        run: |
+          echo "::warning::Falta el secreto SUPABASE_SERVICE_KEY_PRUEBAS (Settings > Secrets and variables > Actions). No he bajado nada."
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then exit 1; fi
       - uses: actions/checkout@v4
         if: env.SUPABASE_SERVICE_KEY != ''
       - uses: actions/setup-python@v5
